@@ -143,6 +143,7 @@ public class SPInitSSOAuthnRequestValidator extends SSOAuthnRequestAbstractValid
                             "Received: [" + authnReq.getDestination() + "]." +
                             " Expected one in the list: [" + StringUtils.join(idpUrlSet, ',') + "]";
                     log.warn(msg);
+
                     String errorResp = SAMLSSOUtil.buildErrorResponse(SAMLSSOConstants.StatusCodes.REQUESTOR_ERROR,
                             msg, authnReq.getAssertionConsumerServiceURL());
                     validationResponse.setResponse(errorResp);
