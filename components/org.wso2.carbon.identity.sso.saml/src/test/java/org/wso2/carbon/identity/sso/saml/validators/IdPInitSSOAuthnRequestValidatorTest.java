@@ -18,6 +18,7 @@
 
 package org.wso2.carbon.identity.sso.saml.validators;
 
+import org.mockito.Mock;
 import org.opensaml.saml2.core.impl.IssuerBuilder;
 import org.opensaml.xml.XMLObject;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
@@ -33,6 +34,8 @@ import org.wso2.carbon.identity.sso.saml.TestConstants;
 import org.wso2.carbon.identity.sso.saml.dto.QueryParamDTO;
 import org.wso2.carbon.identity.sso.saml.dto.SAMLSSOReqValidationResponseDTO;
 import org.wso2.carbon.identity.sso.saml.util.SAMLSSOUtil;
+import org.wso2.carbon.user.core.service.RealmService;
+import org.wso2.carbon.user.core.tenant.TenantManager;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -54,6 +57,12 @@ public class IdPInitSSOAuthnRequestValidatorTest extends PowerMockTestCase{
     public IObjectFactory getObjectFactory() {
         return new PowerMockObjectFactory();
     }
+
+    @Mock
+    private RealmService mockRealmService;
+
+    @Mock
+    private TenantManager mockTenantManager;
 
     @DataProvider(name = "testValidate")
     public static Object[][] testValidateData() {
@@ -85,10 +94,18 @@ public class IdPInitSSOAuthnRequestValidatorTest extends PowerMockTestCase{
 
         SAMLSSOUtil.doBootstrap();
 
+        mockStatic(SAMLSSOUtil.class);
+
+        when(SAMLSSOUtil.getRealmService()).thenReturn(mockRealmService);
+        when(mockRealmService.getTenantManager()).thenReturn(mockTenantManager);
+        when(mockTenantManager.getTenantId(anyString())).thenReturn(4567);
+
+        when(SAMLSSOUtil.getIdPInitSSOAuthnRequestValidator(any(QueryParamDTO[].class), anyString()))
+                .thenCallRealMethod();
+
         SSOAuthnRequestValidator authnRequestValidator =
                 SAMLSSOUtil.getIdPInitSSOAuthnRequestValidator(queryParamDTOS, "relayString");
 
-        mockStatic(SAMLSSOUtil.class);
         when(SAMLSSOUtil.buildErrorResponse(anyString(), anyString(), anyString())).thenCallRealMethod();
         when(SAMLSSOUtil.marshall(any(XMLObject.class))).thenCallRealMethod();
         when(SAMLSSOUtil.compressResponse(anyString())).thenCallRealMethod();
@@ -101,7 +118,7 @@ public class IdPInitSSOAuthnRequestValidatorTest extends PowerMockTestCase{
             assertNull(samlssoReqValidationResponseDTO.getResponse(), "Should not contain an error response.");
         } else {
             assertFalse(samlssoReqValidationResponseDTO.isValid(), "Should not be a valid SAML request.");
-            assertNotNull(samlssoReqValidationResponseDTO.getResponse(), "Should contain an erro response.");
+            assertNotNull(samlssoReqValidationResponseDTO.getResponse(), "Should contain an error response.");
         }
     }
 }

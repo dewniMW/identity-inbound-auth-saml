@@ -25,16 +25,15 @@ import org.wso2.carbon.identity.sso.saml.SAMLSSOConstants;
 import org.wso2.carbon.identity.sso.saml.dto.QueryParamDTO;
 import org.wso2.carbon.identity.sso.saml.dto.SAMLSSOReqValidationResponseDTO;
 import org.wso2.carbon.identity.sso.saml.util.SAMLSSOUtil;
+import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.utils.multitenancy.MultitenantConstants;
 
-
-public class IdPInitSSOAuthnRequestValidator extends SSOAuthnRequestAbstractValidator{
+public class IdPInitSSOAuthnRequestValidator extends SSOAuthnRequestAbstractValidator {
 
     private static final Log log = LogFactory.getLog(IdPInitSSOAuthnRequestValidator.class);
 
     private String spEntityID;
     private String acs;
-
 
     public IdPInitSSOAuthnRequestValidator(QueryParamDTO[] queryParamDTOs, String relayState) throws IdentityException {
 
@@ -55,6 +54,10 @@ public class IdPInitSSOAuthnRequestValidator extends SSOAuthnRequestAbstractVali
             // spEntityID MUST NOT be null
             if (StringUtils.isNotBlank(spEntityID)) {
                 validationResponse.setIssuer(spEntityID);
+                String issuerQualifier = SAMLSSOUtil.getIssuerQualifier();
+                if (StringUtils.isNotBlank(issuerQualifier)) {
+                    validationResponse.setIssuerQualifier(issuerQualifier);
+                }
             } else {
                 String errorResp = SAMLSSOUtil.buildErrorResponse(SAMLSSOConstants.StatusCodes.REQUESTOR_ERROR,
                         "spEntityID parameter not found in request", null);
@@ -66,8 +69,7 @@ public class IdPInitSSOAuthnRequestValidator extends SSOAuthnRequestAbstractVali
                 return validationResponse;
             }
 
-            if (!SAMLSSOUtil.isSAMLIssuerExists(splitAppendedTenantDomain(spEntityID),
-                    SAMLSSOUtil.getTenantDomainFromThreadLocal())) {
+            if (!SAMLSSOUtil.isSAMLIssuerExists(spEntityID, SAMLSSOUtil.getTenantDomainFromThreadLocal())) {
                 String message = "A SAML Service Provider with the Issuer '" + spEntityID + "' is not registered. " +
                                  "Service Provider should be registered in advance";
                 log.error(message);
@@ -98,14 +100,35 @@ public class IdPInitSSOAuthnRequestValidator extends SSOAuthnRequestAbstractVali
         }
     }
 
-    private void init(QueryParamDTO[] queryParamDTOs) {
+    private void init(QueryParamDTO[] queryParamDTOs) throws IdentityException {
 
         for (QueryParamDTO queryParamDTO : queryParamDTOs) {
             if (SAMLSSOConstants.QueryParameter.SP_ENTITY_ID.toString().equals(queryParamDTO.getKey())) {
-                this.spEntityID = queryParamDTO.getValue();
+                String issuer;
+                try {
+                    issuer = splitAppendedTenantDomain(queryParamDTO.getValue());
+                } catch (UserStoreException e) {
+                    throw new IdentityException("Error occurred while splitting appended tenant domain from issuer.", e);
+                }
+                String issuerQualifier = getSPQualifierExists(queryParamDTOs);
+                if (StringUtils.isNotBlank(issuerQualifier)) {
+                    this.spEntityID = SAMLSSOUtil.getIssuerWithQualifier(issuer, issuerQualifier);
+                } else {
+                    this.spEntityID = issuer;
+                }
             } else if (SAMLSSOConstants.QueryParameter.ACS.toString().equals(queryParamDTO.getKey())) {
                 this.acs = queryParamDTO.getValue();
             }
         }
+    }
+
+    private String getSPQualifierExists(QueryParamDTO[] queryParamDTOs) {
+
+        for (QueryParamDTO queryParamDTO : queryParamDTOs) {
+            if (SAMLSSOConstants.QueryParameter.SP_QUALIFIER.toString().equals(queryParamDTO.getKey())) {
+                return queryParamDTO.getValue();
+            }
+        }
+        return null;
     }
 }
